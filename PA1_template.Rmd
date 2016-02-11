@@ -8,18 +8,112 @@ output:
 
 ## Loading and preprocessing the data
 
-
+read_data <- function(){
+        fileName <- "activity.zip"
+        url <- "https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2Factivity.zip"
+        if (!file.exists(fileName)){
+                download.file(url, fileName, method = "curl")
+        }
+        unzip(fileName, "activity.csv")
+        data <- read.csv("activity.csv", colClasses = c("numeric", "character", "numeric"))
+        data$date <- as.Date(data$date)
+        return(data)
+}
+data <- read_data()
 
 ## What is mean total number of steps taken per day?
 
+## HISTOGRAM
 
+barplot_StepsPerDay <- function(data){
+        df <- aggregate(steps ~ date, data = data, sum)
+        df$date <- as.Date(df$date)
+        bplot <- barplot(df$steps, 
+             xlab = "Date by Day (2012-10-02 to 2012-11-29)",
+             ylab = "Total Steps",
+             main = "Total Steps Taken Per Day")
+        bplot
+        axis(1, at = bplot, labels = FALSE)
+}
+barplot_StepsPerDay(data)
+
+## MEAN
+
+mean_StepsPerDay <- function(data){
+        df <- aggregate(steps ~ date, data = data, sum)
+        mean(df$steps)
+}
+mean_StepsPerDay(data)
+
+##MEDIAN
+
+median_StepsPerDay <- function(data){
+        df <- aggregate(steps ~ date, data = data, sum)
+        median(df$steps)
+}
+median_StepsPerDay(data)
 
 ## What is the average daily activity pattern?
 
+ts_plot <- function(data){
+        df <- aggregate(steps ~ interval, data = data, mean)
+        plot(df$interval, df$steps, 
+                        type = "l", 
+                        xlab = "5-Minute Intervals", 
+                        ylab = "Average Steps Taken Across All Days",
+                        col = "blue")
+}
+ts_plot(data)
 
+max_interval <- function(){
+        df <- aggregate(steps ~ interval, data = data, mean)
+        df[which.max(df$steps),]
+}
+max_interval()
 
 ## Imputing missing values
 
+impute_mean <- function(){
+        # create data frame with column of indices for NA values
+        na_indices <- which(is.na(data$steps))
+        df_na <- cbind(data[na_indices,], na_indices)
+
+        # using indices of NA values, impute average steps per interval 
+        df_mean <- aggregate(steps ~ interval, data = data, mean)
+        df_merged <- merge(df_na, df_mean, by.x = "interval", by.y = "interval")
+        df_merged <- df_merged[order(df_merged$na_indices),]
+
+        imputed_data <- data
+        imputed_data$steps[na_indices] <- df_merged$steps.y
+        return(imputed_data)
+}
+imputed_data <- impute_mean()
 
 
 ## Are there differences in activity patterns between weekdays and weekends?
+
+# categorizes days of week into weekdays or weekends
+weekend_or_weekday <- function(var){
+     if (var %in% c("Sunday", "Saturday")){
+                var <- as.factor("Weekend")
+        }else{
+                var <- as.factor("Weekday")
+        }   
+}
+# adds factor variable WeekEndDay
+add_WeekEndDay <- function(df){
+        list_DaysOfTheWeek <- weekdays(df$date)
+        WeekEndDay <- sapply(list_DaysOfTheWeek, weekend_or_weekday)
+        day_of_week_data <- cbind(df, WeekEndDay)
+        return(day_of_week_data)
+}
+day_of_week_data <- add_WeekEndDay(imputed_data)
+# Side by Side time plot
+library(lattice)
+plot_WeekendVsWeekday <- function(){
+        df <- aggregate(steps ~ interval + WeekEndDay, data = day_of_week_data, mean)
+        with(df, xyplot(steps~interval|WeekEndDay, 
+                        type = "l", 
+                        layout = c(1,2)))
+}
+plot_WeekendVsWeekday()
